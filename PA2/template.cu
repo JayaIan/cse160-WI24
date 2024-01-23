@@ -40,13 +40,13 @@ int main(int argc, char **argv) {
   gpuTKTime_start(GPU, "Copying input memory to the GPU.");
   //@@ Copy memory to the GPU here
   cudaMemcpy(deviceInput1, hostInput1, inputLength*sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(deviceInput2, hostInput1, inputLength*sizeof(float), cudaMemcpyHostToDevice);
+  cudaMemcpy(deviceInput2, hostInput2, inputLength*sizeof(float), cudaMemcpyHostToDevice);
 
   gpuTKTime_stop(GPU, "Copying input memory to the GPU.");
 
   //@@ Initialize the grid and block dimensions here
-  dim3 grid_size((inputLength/1024) + 1, 1, 1);  
-  dim3 block_size(1024, 1, 1);
+  dim3 grid_size((inputLength/512) + 1, 1, 1);
+  dim3 block_size(512, 1, 1);
   gpuTKTime_start(Compute, "Performing CUDA computation");
   //@@ Launch the GPU Kernel here
   vecAdd<<<grid_size, block_size>>> (deviceInput1, deviceInput2, deviceOutput, inputLength);
@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
 
   gpuTKTime_start(Copy, "Copying output memory to the CPU");
   //@@ Copy the GPU memory back to the CPU here
-  cudaMemcpy(hostInput1, deviceOutput, inputLength*sizeof(float), cudaMemcpyDeviceToHost);
+  cudaMemcpy(hostOutput, deviceOutput, inputLength*sizeof(float), cudaMemcpyDeviceToHost);
 
   gpuTKTime_stop(Copy, "Copying output memory to the CPU");
 
