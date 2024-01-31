@@ -1,5 +1,6 @@
 
 #include <gputk.h>
+const int BLOCK_WIDTH = 16;
 
 #define gpuTKCheck(stmt)                                                     \
   do {                                                                    \
@@ -17,6 +18,21 @@ __global__ void matrixMultiply(float *A, float *B, float *C, int numARows,
                                int numBColumns, int numCRows,
                                int numCColumns) {
   //@@ Insert code to implement matrix multiplication here
+
+  // Calculate the row index of the Matrix A
+  int Row = blockIdx.y*blockDim.y+threadIdx.y;
+  // Calculate the column index of Matrix B
+  int Col = blockIdx.x*blockDim.x+threadIdx.x;
+
+  // Only operate if Row and Col are within the dimensions of Matrix C
+  if ((Row < numCColumns) && (Col < numCRows)) {
+    float Cvalue = 0;
+    // each thread computes one element of the block sub-matrix
+    for (int k = 0; k < numAColumns; ++k) {
+      Cvalue += A[Row*numAColumns+k] * B[k*numBColumns+Col];
+    }
+    C[Row*numCColumns+Col] = Cvalue;
+  }
 }
 
 int main(int argc, char **argv) {
@@ -43,9 +59,11 @@ int main(int argc, char **argv) {
   hostB = (float *)gpuTKImport(gpuTKArg_getInputFile(args, 1), &numBRows,
                             &numBColumns);
   //@@ Set numCRows and numCColumns
-  numCRows    = 0;
-  numCColumns = 0;
+  numCRows    = numARows;
+  numCColumns = numBColumns;
   //@@ Allocate the hostC matrix
+  hostC = (float *)malloc(numARows * numBColumns * sizeof(float));
+
   gpuTKTime_stop(Generic, "Importing data and creating memory on host");
 
   gpuTKLog(TRACE, "The dimensions of A are ", numARows, " x ", numAColumns);
@@ -53,29 +71,41 @@ int main(int argc, char **argv) {
 
   gpuTKTime_start(GPU, "Allocating GPU memory.");
   //@@ Allocate GPU memory here
+  cudaMalloc(&deviceA, numARows * numAColumns * sizeof(float));
+  cudaMalloc(&deviceB, numBRows * numBColumns * sizeof(float));
+  cudaMalloc(&deviceC, numCRows * numCColumns * sizeof(float));
 
   gpuTKTime_stop(GPU, "Allocating GPU memory.");
 
   gpuTKTime_start(GPU, "Copying input memory to the GPU.");
   //@@ Copy memory to the GPU here
+  cudaMemcpy(deviceA, hostA, numARows * numAColumns * sizeof(float), cudaMemcpyHostToDevice);
+  cudaMemcpy(deviceB, hostB, numBRows * numBColumns * sizeof(float), cudaMemcpyHostToDevice);
 
   gpuTKTime_stop(GPU, "Copying input memory to the GPU.");
 
   //@@ Initialize the grid and block dimensions here
+  dim3 grid_size(ceil((1.0*numCColumns)/BLOCK_WIDTH), ceil((1.0*numCRows)/BLOCK_WIDTH), 1);
+  dim3 block_size(BLOCK_WIDTH, BLOCK_WIDTH, 1);
 
   gpuTKTime_start(Compute, "Performing CUDA computation");
   //@@ Launch the GPU Kernel here
-
+  matrixMultiply<<<grid_size, block_size>>> (deviceA, deviceB, deviceC, numARows, numAColumns, 
+                                            numBRows, numBColumns, numCRows, numCColumns);
   cudaDeviceSynchronize();
   gpuTKTime_stop(Compute, "Performing CUDA computation");
 
   gpuTKTime_start(Copy, "Copying output memory to the CPU");
   //@@ Copy the GPU memory back to the CPU here
+  cudaMemcpy(hostC, deviceC, numCRows * numCColumns * sizeof(float), cudaMemcpyDeviceToHost);
 
   gpuTKTime_stop(Copy, "Copying output memory to the CPU");
 
   gpuTKTime_start(GPU, "Freeing GPU Memory");
   //@@ Free the GPU memory here
+  cudaFree(deviceA);
+  cudaFree(deviceB);
+  cudaFree(deviceC);
 
   gpuTKTime_stop(GPU, "Freeing GPU Memory");
 
