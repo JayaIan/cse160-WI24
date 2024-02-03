@@ -4,7 +4,7 @@ solution:	template.o
 		nvcc -o solution -lm -lcuda -lrt template.o ../libgputk/lib/libgputk.a 
 
 template.o:	template.cu
-		nvcc --compile -g template.cu -I ../libgputk/
+		nvcc --compile -g -G template.cu -I ../libgputk/
 
 dataset_generator:	dataset_generator.o
 		nvcc -o dataset_generator -lm -lcuda -lrt dataset_generator.o ../libgputk/lib/libgputk.a 
@@ -49,4 +49,8 @@ run: solution
 		@echo "\n"
 		@echo "test - 8"
 		@./solution -e ./Dataset/8/output.raw -i ./Dataset/8/input0.raw,./Dataset/8/input1.raw -t matrix
+		@echo "\n"
+		@echo "\n"
+		@echo "test - 9"
+		@./solution -e ./Dataset/9/output.raw -i ./Dataset/9/input0.raw,./Dataset/9/input1.raw -t matrix
 		@echo "\n"

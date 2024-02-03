@@ -25,7 +25,8 @@ __global__ void matrixMultiply(float *A, float *B, float *C, int numARows,
   int Col = blockIdx.x*blockDim.x+threadIdx.x;
 
   // Only operate if Row and Col are within the dimensions of Matrix C
-  if ((Row < numCColumns) && (Col < numCRows)) {
+  // if ((Row < numCColumns) && (Col < numCRows)) {
+  if ((Row < numCRows) && (Col < numCColumns)) {
     float Cvalue = 0;
     // each thread computes one element of the block sub-matrix
     for (int k = 0; k < numAColumns; ++k) {
@@ -68,6 +69,7 @@ int main(int argc, char **argv) {
 
   gpuTKLog(TRACE, "The dimensions of A are ", numARows, " x ", numAColumns);
   gpuTKLog(TRACE, "The dimensions of B are ", numBRows, " x ", numBColumns);
+  gpuTKLog(TRACE, "The dimensions of C are ", numCRows, " x ", numCColumns);
 
   gpuTKTime_start(GPU, "Allocating GPU memory.");
   //@@ Allocate GPU memory here
@@ -85,7 +87,11 @@ int main(int argc, char **argv) {
   gpuTKTime_stop(GPU, "Copying input memory to the GPU.");
 
   //@@ Initialize the grid and block dimensions here
-  dim3 grid_size(ceil((1.0*numCColumns)/BLOCK_WIDTH), ceil((1.0*numCRows)/BLOCK_WIDTH), 1);
+  // dim3 grid_size(ceil((1.0*numCRows)/(1.0*BLOCK_WIDTH)), ceil((1.0*numCColumns)/(1.0*BLOCK_WIDTH)), 1);
+  dim3 grid_size(ceil((1.0*numCColumns)/(1.0*BLOCK_WIDTH)), ceil((1.0*numCRows)/(1.0*BLOCK_WIDTH)), 1);
+  // dim3 grid_size(20, 20, 1);
+  // printf("Grid X: %d \n", grid_size.x);
+  // printf("Grid Y: %d \n", grid_size.y);
   dim3 block_size(BLOCK_WIDTH, BLOCK_WIDTH, 1);
 
   gpuTKTime_start(Compute, "Performing CUDA computation");
@@ -100,6 +106,30 @@ int main(int argc, char **argv) {
   cudaMemcpy(hostC, deviceC, numCRows * numCColumns * sizeof(float), cudaMemcpyDeviceToHost);
 
   gpuTKTime_stop(Copy, "Copying output memory to the CPU");
+
+//   // Print the 2D array A
+//   for (int i = 0; i < numARows; ++i) {
+//       for (int j = 0; j < numAColumns; ++j) {
+//           printf("%f \t", *(hostA + i*numAColumns + j));
+//       }
+//       printf("\n");
+//   }
+// printf("\n");
+//   // Print the 2D array B
+//   for (int i = 0; i < numBRows; ++i) {
+//       for (int j = 0; j < numBColumns; ++j) {
+//           printf("%f \t", *(hostB + i*numBColumns + j));
+//       }
+//       printf("\n");
+//   }
+// printf("\n");
+//   // Print the 2D array C
+//   for (int i = 0; i < numCRows; ++i) {
+//       for (int j = 0; j < numCColumns; ++j) {
+//           printf("%f \t", *(hostC + i*numCColumns + j));
+//       }
+//       printf("\n");
+//   }
 
   gpuTKTime_start(GPU, "Freeing GPU Memory");
   //@@ Free the GPU memory here
