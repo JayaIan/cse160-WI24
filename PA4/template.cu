@@ -18,21 +18,37 @@ __global__ void matrixMultiplyShared(float *A, float *B, float *C,
                                      int numCRows, int numCColumns) {
   //@@ Insert code to implement matrix multiplication here
   //@@ You have to use shared memory for this lab
+  __shared__ float subTileM[BLOCK_WIDTH][BLOCK_WIDTH];
+  __shared__ float subTileN[BLOCK_WIDTH][BLOCK_WIDTH];
   // Calculate the row index of the Matrix A
   int Row = blockIdx.y*blockDim.y+threadIdx.y;
   // Calculate the column index of Matrix B
   int Col = blockIdx.x*blockDim.x+threadIdx.x;
 
   // Only operate if Row and Col are within the dimensions of Matrix C
-  // if ((Row < numCColumns) && (Col < numCRows)) {
-  if ((Row < numCRows) && (Col < numCColumns)) {
+  // if ((Row < numCRows) && (Col < numCColumns)) {
     float Cvalue = 0;
-    // each thread computes one element of the block sub-matrix
-    for (int k = 0; k < numAColumns; ++k) {
-      Cvalue += A[Row*numAColumns+k] * B[k*numBColumns+Col];
-    }
+    for (int m = 0; m < ceil((1.0*numAColumns)/(1.0*BLOCK_WIDTH)); ++m) {
+      // Collaborative loading of M and N tiles into shared memory
+      if (m*BLOCK_WIDTH+threadIdx.x > (numAColumns - 1) || Row >= (numARows)) {
+        subTileM[threadIdx.y][threadIdx.x] = 0;
+      } else {
+        subTileM[threadIdx.y][threadIdx.x] = A[Row*numAColumns+m*BLOCK_WIDTH+threadIdx.x];
+      }
+
+      if (m*BLOCK_WIDTH+threadIdx.y > (numBRows - 1) || Col >= (numBColumns)) {
+        subTileN[threadIdx.y][threadIdx.x] = 0;
+      } else {
+        subTileN[threadIdx.y][threadIdx.x] = B[(m*BLOCK_WIDTH+threadIdx.y)*numBColumns+Col];
+      }
+      __syncthreads();
+      for (int k = 0; k < BLOCK_WIDTH; ++k) {
+  		  Cvalue += subTileM[threadIdx.y][k] * subTileN[k][threadIdx.x];
+      }
+   	  __syncthreads();
+    }	
     C[Row*numCColumns+Col] = Cvalue;
-  }
+  // }
 }
 
 int main(int argc, char **argv) {
@@ -101,6 +117,30 @@ int main(int argc, char **argv) {
   cudaMemcpy(hostC, deviceC, numCRows * numCColumns * sizeof(float), cudaMemcpyDeviceToHost);
 
   gpuTKTime_stop(Copy, "Copying output memory to the CPU");
+
+//   // Print the 2D array A
+//   for (int i = 0; i < numARows; ++i) {
+//       for (int j = 0; j < numAColumns; ++j) {
+//           printf("%f \t", *(hostA + i*numAColumns + j));
+//       }
+//       printf("\n");
+//   }
+// printf("\n");
+//   // Print the 2D array B
+//   for (int i = 0; i < numBRows; ++i) {
+//       for (int j = 0; j < numBColumns; ++j) {
+//           printf("%f \t", *(hostB + i*numBColumns + j));
+//       }
+//       printf("\n");
+//   }
+// printf("\n");
+//   // Print the 2D array C
+//   for (int i = 0; i < numCRows; ++i) {
+//       for (int j = 0; j < numCColumns; ++j) {
+//           printf("%f \t", *(hostC + i*numCColumns + j));
+//       }
+//       printf("\n");
+//   }
 
   gpuTKTime_start(GPU, "Freeing GPU Memory");
   //@@ Free the GPU memory here

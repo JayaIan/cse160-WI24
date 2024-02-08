@@ -110,6 +110,7 @@ int main() {
   base_dir = gpuTKPath_join(gpuTKDirectory_current(), "Dataset");
 
   create_dataset(0, 16, 16, 16);
+  // create_dataset(0, 2, 3, 4);
   create_dataset(1, 64, 64, 64);
   create_dataset(2, 64, 128, 64);
   create_dataset(3, 112, 48, 16);
@@ -119,5 +120,6 @@ int main() {
   create_dataset(7, 29, 117, 85);
   create_dataset(8, 191, 19, 241);
   create_dataset(9, 2048, 2048, 2048);
+  create_dataset(11, 2, 3, 4);
   return 0;
 }
