@@ -1,5 +1,5 @@
 #include <gputk.h>
-const int BLOCK_WIDTH = 16;
+#define BLOCK_WIDTH 16
 
 #define gpuTKCheck(stmt)                                                     \
   do {                                                                    \
@@ -30,24 +30,34 @@ __global__ void matrixMultiplyShared(float *A, float *B, float *C,
     float Cvalue = 0;
     for (int m = 0; m < ceil((1.0*numAColumns)/(1.0*BLOCK_WIDTH)); ++m) {
       // Collaborative loading of M and N tiles into shared memory
-      if (m*BLOCK_WIDTH+threadIdx.x > (numAColumns - 1) || Row >= (numARows)) {
+      // printf("Case M\n");
+      if (m*BLOCK_WIDTH+threadIdx.x >= (numAColumns) || Row >= (numARows)) {
         subTileM[threadIdx.y][threadIdx.x] = 0;
       } else {
+        // printf("X coordinate %d \t Y coordinate %d \t Copied value %.3f \n", m*BLOCK_WIDTH+threadIdx.x, Row, A[Row*numAColumns+m*BLOCK_WIDTH+threadIdx.x]);
         subTileM[threadIdx.y][threadIdx.x] = A[Row*numAColumns+m*BLOCK_WIDTH+threadIdx.x];
       }
-
-      if (m*BLOCK_WIDTH+threadIdx.y > (numBRows - 1) || Col >= (numBColumns)) {
+      // printf("X coordinate %d \t Y coordinate %d \t Copied value %.3f \n", m*BLOCK_WIDTH+threadIdx.x, Row, subTileM[threadIdx.y][threadIdx.x]);
+      // printf("Case N\n");
+      if (m*BLOCK_WIDTH+threadIdx.y >= (numBRows) || Col >= (numBColumns)) {
         subTileN[threadIdx.y][threadIdx.x] = 0;
       } else {
+        // printf("X coordinate %d \t Y coordinate %d \t Copied value %.3f \n", Col, m*BLOCK_WIDTH+threadIdx.y, B[(m*BLOCK_WIDTH+threadIdx.y)*numBColumns+Col]);
         subTileN[threadIdx.y][threadIdx.x] = B[(m*BLOCK_WIDTH+threadIdx.y)*numBColumns+Col];
       }
       __syncthreads();
+      // printf("X coordinate %d \t Y coordinate %d \t Copied value %.3f \n", Col, m*BLOCK_WIDTH+threadIdx.y, subTileN[threadIdx.y][threadIdx.x]);
+ 
+
       for (int k = 0; k < BLOCK_WIDTH; ++k) {
   		  Cvalue += subTileM[threadIdx.y][k] * subTileN[k][threadIdx.x];
+        
       }
    	  __syncthreads();
     }	
-    C[Row*numCColumns+Col] = Cvalue;
+    // printf("X coordinate %d \t Y coordinate %d \t C value %.3f \n", Row, Col, Cvalue);
+    if (Row < numCRows && Col < numCColumns)
+      C[Row*numCColumns+Col] = Cvalue;
   // }
 }
 
@@ -107,8 +117,10 @@ int main(int argc, char **argv) {
 
   gpuTKTime_start(Compute, "Performing CUDA computation");
   //@@ Launch the GPU Kernel here
-  matrixMultiplyShared<<<grid_size, block_size>>> (deviceA, deviceB, deviceC, numARows, numAColumns, 
-                                            numBRows, numBColumns, numCRows, numCColumns);
+  matrixMultiplyShared<<<grid_size, block_size>>> (deviceA, deviceB, deviceC, 
+                                                  numARows, numAColumns, 
+                                            numBRows, numBColumns, 
+                                            numCRows, numCColumns);
   cudaDeviceSynchronize();
   gpuTKTime_stop(Compute, "Performing CUDA computation");
 
