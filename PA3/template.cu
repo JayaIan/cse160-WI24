@@ -1,4 +1,3 @@
-
 #include <gputk.h>
 const int BLOCK_WIDTH = 16;
 
