@@ -2,6 +2,10 @@
 #include <iostream>
 #include "gpu-new-forward.h"
 
+# define TILE_WIDTH 16
+
+// __constant__ float masks[49];
+
 __global__ void conv_forward_kernel(float *y, const float *x, const float *k, const int B, const int M, const int C, const int H, const int W, const int K)
 {
 
@@ -35,7 +39,12 @@ __global__ void conv_forward_kernel(float *y, const float *x, const float *k, co
 __host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const float *host_x, const float *host_k, float **device_y_ptr, float **device_x_ptr, float **device_k_ptr, const int B, const int M, const int C, const int H, const int W, const int K)
 {
     // Allocate memory and copy over the relevant data structures to the GPU
+    cudaMalloc((void**)&device_y_ptr, B * M * (H - K + 1) * (W - K + 1) * sizeof(float));
+    cudaMalloc((void**)&device_x_ptr, B * C * H * W * sizeof(float));
+    cudaMalloc((void**)&device_k_ptr, C * K * K * sizeof(float));
 
+    cudaMemcpy(device_x_ptr, host_x, B * C * H * W * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(device_k_ptr, host_k, B * C * K * K * sizeof(float), cudaMemcpyHostToDevice);   
     // We pass double pointers for you to initialize the relevant device pointers,
     //  which are passed to the other two functions.
 
@@ -52,15 +61,25 @@ __host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const f
 
 __host__ void GPUInterface::conv_forward_gpu(float *device_y, const float *device_x, const float *device_k, const int B, const int M, const int C, const int H, const int W, const int K)
 {
-    // Set the kernel dimensions and call the kernel
+    int H_out = H - K + 1;
+    int W_out = W - K + 1;
+    int W_grid = W_out/TILE_WIDTH; 	// number of horizontal tiles per output map
+    int H_grid = H_out/TILE_WIDTH; 	// number of vertical tiles per output map
+    int Y = H_grid * W_grid;		// Number of blocks in the Y dimension
+    dim3 blockDim(TILE_WIDTH, TILE_WIDTH, 1);
+    dim3 gridDim(M, Y, B);
+    conv_forward_kernel<<< gridDim, blockDim>>>(device_y, device_x, device_k, B, M, C, H, W, K);
 }
 
 
 __host__ void GPUInterface::conv_forward_gpu_epilog(float *host_y, float *device_y, float *device_x, float *device_k, const int B, const int M, const int C, const int H, const int W, const int K)
 {
     // Copy the output back to host
-
+    cudaMemcpy(host_y, device_y, B * M * (H - K + 1) * (W - K + 1) * sizeof(float), cudaMemcpyDeviceToHost);
     // Free device memory
+    cudaFree(device_y);
+    cudaFree(device_x);
+    cudaFree(device_k);
 }
 
 
