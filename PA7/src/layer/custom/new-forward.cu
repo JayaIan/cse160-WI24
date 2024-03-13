@@ -24,20 +24,29 @@ __global__ void conv_forward_kernel(float *y, const float *x, const float *k, co
     We have some nice #defs for you below to simplify indexing. Feel free to use them, or create your own.
     */
 
-    int W_grid = W_out/TILE_WIDTH; 	// number of horizontal tiles per output map
+
+    // __shared__ float sharedWeights[M][C][K][K];
+    // __shared__ float subTileN[TILE_WIDTH][TILE_WIDTH];
+
+    int W_grid = ceil(W_out*1.0/TILE_WIDTH); 	// number of horizontal tiles per output map
 
     int b = blockIdx.z;
     int m = blockIdx.x;
     int h = (blockIdx.y / W_grid) * TILE_WIDTH + threadIdx.y;
     int w = (blockIdx.y % W_grid) * TILE_WIDTH + threadIdx.x;
+    
+    float acc = 0.;
     if (h < H_out && w < W_out) {
-        float acc = 0.;
         for (int c = 0;  c < C; c++) {		// sum over all input channels
-        for (int p = 0; p < K; p++)		// loop over KxK  filter
-            for (int q = 0; q < K; q++)  
-                acc += x4d(b, c, h+p, w+q) * k4d(m, c, p, q);
+            for (int p = 0; p < K; p++) {		// loop over KxK  filter
+                for (int q = 0; q < K; q++)  {
+                    acc += x4d(b, c, h+p, w+q) * k4d(m, c, p, q);
+                }
+            }
         }
         y4d(b, m, h, w) = acc;
+    } else {
+        return;
     }
 
 
@@ -57,6 +66,7 @@ __host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const f
     cudaMalloc((void**)device_k_ptr, M * C * K * K * sizeof(float));
 
     cudaMemcpy(*device_x_ptr, host_x, B * C * H * W * sizeof(float), cudaMemcpyHostToDevice);
+    // cudaMemcpy(*device_y_ptr, host_y, B * M * (H - K + 1) * (W - K + 1) * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(*device_k_ptr, host_k, M * C * K * K * sizeof(float), cudaMemcpyHostToDevice);   
     // We pass double pointers for you to initialize the relevant device pointers,
     //  which are passed to the other two functions.
